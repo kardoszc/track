@@ -125,7 +125,7 @@ class Speed(object):
         points.sort(key = lambda p : p.y)
         path = 0
         for i in range(len(points)-1):
-            path += points[i+1].distance(points[i])
+            path += int(points[i+1].distance(points[i]))
             points[i+1].path = path
         return points
 
@@ -211,6 +211,8 @@ class Speed(object):
         y = {"name": 'y', "data" : []}
         direction = {"name": 'direction', "data" : []}
         for p in self.points:
+            if p.direction < 10 :
+                continue
             categories.append(p.path)
             y["data"].append(p.y - self.points[0].y)
             direction["data"].append(p.direction)
