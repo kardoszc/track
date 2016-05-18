@@ -8,12 +8,24 @@ class Point(object):
         self.x = x
         self.y = y
         self.valid = True
+        self.path = 0  
+        self.direction = 0 
 
     def is_same_point(self, point):
         return self.x == point.x and self.y == point.y
     
     def distance(self, point):
         return math.sqrt((self.x - point.x)*(self.x - point.x) + (self.y - point.y)*(self.y - point.y))
+    
+    def angle_to(self, point):
+        if point.x == self.x:
+            return math.pi/2 if point.y > self.y else 3*math.pi/2
+        ang = math.atan(float(point.y-self.y)/float(point.x-self.x))
+        if point.x < self.x:
+            ang += math.pi
+        if ang < 0:
+            ang += math.pi*2
+        return ang
 
     def __str__(self):
         return "%s,%s" % (self.x, self.y)
@@ -22,13 +34,38 @@ class Line(object):
     def __init__(self, start, end):
         self.start = start
         self.end = end
-        if self.start.x > self.end.x:
-            self.start, self.end = self.end, self.start 
-        elif self.start.x == self.end.x:
-            if self.start.y > self.end.y:
-                self.start, self.end = self.end, self.start 
         self.valid = True
+        
+        if self.start.x != self.end.x :
+            if self.start.x > self.end.x:
+                self.start, self.end = self.end, self.start
+            self.k = (self.end.y - self.start.y) / (self.end.x - self.start.x) 
+            self.b = self.end.y - self.k * self.end.x
+        else :
+            self.k = "infinite"   
+            if self.start.y > self.end.y:
+                self.start, self.end = self.end, self.start
 
+    @property
+    def length(self):
+        return self.start.distance(self.end)
+
+    def points(self):
+        sub_points = []
+        if self.length <= 4:
+            return [self.start]
+        n = int(self.length)
+        
+        if self.k == "infinite":
+            for i in range(0,n,4):
+                sub_points.append(Point(self.start.x, self.start.y + i))
+        else:
+            for i in range(0,n,4):
+                x = self.start.x + i / math.sqrt(self.k *self.k  +1)
+                y = self.start.y + i * self.k  / math.sqrt(self.k *self.k  +1)
+                sub_points.append(Point(x, y))
+        return sub_points
+            
     @property
     def angle(self):
         #范围-pi/2 , pi/2
@@ -75,9 +112,33 @@ class Speed(object):
         print "readfile" , time.time() - start
         self.lines = self.get_line()
         print "get_line" , time.time() - start
-
-        self.draw_line(self.get_track())
+        self.points = self.all_points()
+        self.angle()
+        self.html()
+        
+        # self.draw_line(self.get_track())
     
+    def all_points(self):
+        points = []
+        for l in self.lines:
+            points.extend(l.points())
+        points.sort(key = lambda p : p.y)
+        path = 0
+        for i in range(len(points)-1):
+            path += points[i+1].distance(points[i])
+            points[i+1].path = path
+        return points
+
+    def angle(self, pace = 20):
+        for i in range(len(self.points)-pace):
+            points = self.points[i:i+pace]
+            angle = 0
+            for j in range(pace-1):
+                angle += points[j].angle_to(points[j+1])
+            if i+pace/2 < len(self.points) : 
+                self.points[i+pace/2].direction = angle/(pace-1)/math.pi*180
+            # print angle/(pace-1)/math.pi*180#, [[p.x, p.y] for p in points]
+
     def find_layer_by_name(self,name):
         for layer in self.dxf.layers:
             if layer.name == name:
@@ -116,50 +177,7 @@ class Speed(object):
 
         processing_line = lines.pop(0)
         track.extend([processing_line.start, processing_line.end])
-        while lines:
-            line = lines.pop(0)
-            if processing_line.start.distance(line.start) < 1 or processing_line.start.distance(line.end) < 1 or processing_line.end.distance(line.start) < 1 or processing_line.end.distance(line.end) < 1:
-                lines.remove(processing_line)
-                track.extend([line.start, line.end])
-                processing_line = line
         
-        print track,len(track)
-        # for line1 in self.lines:
-        #     if not line1.valid:
-        #         continue
-        #     for line2 in self.lines:
-
-        #         if line1 == line2 or not line2.valid :
-        #             continue
-                
-        #         # if not line1.check(line2,1,20):
-        #         #     continue
-
-        #         if abs(line1.angle - line2.angle) > 0.1:
-        #             continue
-        #         # if line1.distance_to_line(line2) < self.MinTrackWidth or line1.distance_to_line(line2) > self.MaxTrackWidth:
-        #         #     continue
-        #         line1.valid = False
-        #         line2.valid = False
-        #         # start = Point(line1.start.x/2 + line2.start.x/2 , line1.start.y/2 + line2.start.y/2)
-        #         # end = Point(line1.end.x/2 + line2.end.x/2 , line1.end.y/2 + line2.end.y/2)
-        #         # track.append(Line(start,end))
-        #         track.extend([line1, line2])
-        # lines = self.lines
-        # for l in lines:
-            # print l.start.x
-        # line = lines.pop(0)
-        # track.append(line)
-        # while True:
-        #     lines.sort(key = lambda l : l.start.distance(line.end))
-        #     line_next = lines.pop(0)
-        #     if line.end.distance(line_next.start) < 1 :
-        #         print line.end.distance(line_next.start)
-        #         line = line_next
-        #         track.append(line)
-        #         lines.sort(key = lambda l: l.start.y)
-        #     else:
-        #         break
         return self.lines
 
     def draw_line(self, lines):
@@ -174,8 +192,36 @@ class Speed(object):
        
         for l in lines:
             draw.line(_convert(center,size,l.start)+_convert(center,size,l.end),"black")
+            for p in l.points():
+                p_coor = _convert(center,size,p)
+                xy = [int(p_coor[0])-1, int(p_coor[1])-1, int(p_coor[0])+1, int(p_coor[1])+1] 
+                draw.arc(xy,0,360,"red")
         
         im.save("test.jpg")
+    
+    def html(self):
+        input_html = open("hc.html")
+        s = input_html.read()
+        input_html.close()
+        
+        # categories = ["1","2","3"]
+        # series = [{"name": 'test', "data" : [3,2,1]}]
+        categories = []
+        series = []
+        y = {"name": 'y', "data" : []}
+        direction = {"name": 'direction', "data" : []}
+        for p in self.points:
+            categories.append(p.path)
+            y["data"].append(p.y - self.points[0].y)
+            direction["data"].append(p.direction)
+            print p.direction
+
+        series.append(direction)
+        output_html = open('test.html', 'w')
+        output_html.write(s % (categories, series))
+        output_html.close()
+
+        
 
 if __name__ == "__main__":
     # p1 = Point(13,521)
