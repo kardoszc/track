@@ -8,8 +8,10 @@ class Point(object):
         self.x = x
         self.y = y
         self.valid = True
-        self.path = 0  
-        self.direction = 0 
+        self.path = 0  #路程
+        self.direction = 0  #车头方向
+        self.platform = False
+        self.speed = 1
 
     def is_same_point(self, point):
         return self.x == point.x and self.y == point.y
@@ -30,41 +32,71 @@ class Point(object):
     def __str__(self):
         return "%s,%s" % (self.x, self.y)
 
+
+class Arc(object):
+    def __init__(self, center, radius, start_angle, end_angle):
+        self.center = center
+        self.radius = radius
+        self.start_angle = start_angle
+        self.end_angle = end_angle
+    
+    @property
+    def start(self):
+        return self.point_by_angle(self.start_angle)
+    
+    @property
+    def end(self):
+        return self.point_by_angle(self.end_angle)
+
+    def point_by_angle(self, angle):
+        angle = self.start_angle
+        x = self.center.x + math.cos(angle)*self.radius
+        y = self.center.y + math.sin(angle)*self.radius
+        return Point(x, y)
+
+    def points(self, pace = 2):
+        points = []
+        pace_angle = pace / self.radius
+        n = int((self.end_angle - self.start_angle) / pace_angle)
+        for i in n:
+            angle = self.start_angle + i * pace_angle
+            points.append(self.point_by_angle(angle))
+        return points
+
+
 class Line(object):   
     def __init__(self, start, end):
         self.start = start
         self.end = end
         self.valid = True
         
-        if self.start.x != self.end.x :
-            if self.start.x > self.end.x:
-                self.start, self.end = self.end, self.start
-            self.k = (self.end.y - self.start.y) / (self.end.x - self.start.x) 
-            self.b = self.end.y - self.k * self.end.x
-        else :
-            self.k = "infinite"   
-            if self.start.y > self.end.y:
-                self.start, self.end = self.end, self.start
+        # if self.start.x != self.end.x :
+        #     if self.start.x > self.end.x:
+        #         self.start, self.end = self.end, self.start
+        #     self.k = (self.end.y - self.start.y) / (self.end.x - self.start.x) 
+        #     self.b = self.end.y - self.k * self.end.x
+        # else :
+        #     self.k = "infinite"   
+        #     if self.start.y > self.end.y:
+        #         self.start, self.end = self.end, self.start
 
     @property
     def length(self):
         return self.start.distance(self.end)
 
-    def points(self):
-        sub_points = []
-        if self.length <= 4:
-            return [self.start]
-        n = int(self.length)
+    def points(self, pace = 2):
+        points = []
+        n = int(self.length/pace)
         
         if self.k == "infinite":
-            for i in range(0,n,4):
-                sub_points.append(Point(self.start.x, self.start.y + i))
+            for i in range(0,n,pace):
+                points.append(Point(self.start.x, self.start.y + i))
         else:
-            for i in range(0,n,4):
+            for i in range(0,n,pace):
                 x = self.start.x + i / math.sqrt(self.k *self.k  +1)
                 y = self.start.y + i * self.k  / math.sqrt(self.k *self.k  +1)
-                sub_points.append(Point(x, y))
-        return sub_points
+                points.append(Point(x, y))
+        return points
             
     @property
     def angle(self):
@@ -106,28 +138,107 @@ class Speed(object):
     def __init__(self,filename):
         self.MinTrackWidth = 5
         self.MaxTrackWidth = 20
+        self.MaxSpeed = 70
+        self.a = 1.1
 
     	start = time.time()
         self.dxf = dxfgrabber.readfile(filename)
         print "readfile" , time.time() - start
         self.lines = self.get_line()
         print "get_line" , time.time() - start
+        self.arcs =self.get_arc()
+        print "get_arc" , time.time() - start
+
         self.points = self.all_points()
-        self.angle()
-        self.html()
+        # self.angle()
         
+        # self.get_platform()
+
+        # self.html()
         # self.draw_line(self.get_track())
     
     def all_points(self):
         points = []
-        for l in self.lines:
-            points.extend(l.points())
-        points.sort(key = lambda p : p.y)
+
+        endpoints = {}
+        for entity in self.lines + self.arcs :
+            start_key = "%s,%s" % (entity.start.x, entity.start.y)
+            end_key = "%s,%s" % (entity.start.x, entity.start.y)
+            if endpoints.has_key(start_key) :
+                endpoints[start_key].append({"start":entity})
+            else :
+                endpoints[start_key] = [{"start":entity}]
+
+            if endpoints.has_key(end_key) :
+                endpoints[end_key].append({"end":entity})
+            else :
+                endpoints[end_key] = [{"end":entity}]
+        
+        for entity1 in self.lines + self.arcs :
+            for entity2 in self.lines + self.arcs :
+                if entity1 == entity2 :
+                    continue
+                if entity1.start.is_same_point(entity2.start) and entity1.end.is_same_point(entity2.end) :
+                    print entity1, entity2
+                elif entity1.start.is_same_point(entity2.end) and entity1.end.is_same_point(entity2.start) :
+                    print entity1, entity2
+
+        for t in endpoints.values():
+            if len(t) != 2:
+                print "------------"
+                for i in t:
+                    print id(i)
+                    print i.keys()[0],i.values()[0]
+                    
+        # for l in self.lines:
+        #     points.extend(l.points(2))
+        
+        # for p1 in points:
+        #     for p2 in points:
+        #         if p1 == p2:
+        #             continue
+        #         if p1.is_same_point(p2):
+        #             p2.valid = False
+        
+        points = [p for p in points if p.valid]
         path = 0
         for i in range(len(points)-1):
             path += int(points[i+1].distance(points[i]))
             points[i+1].path = path
+
         return points
+    
+
+    def get_platform(self):
+        entities_on = self.entities_on
+        points = self.points
+        platform_points = []
+        
+        for entity in entities_on:
+            if entity.dxftype == "INSERT":
+                if entity.name == "platform_right":
+                    pf_insert_point = Point(entity.insert[0], entity.insert[1])
+                    points.sort(key = lambda p: pf_insert_point.distance(p))
+                    points[0].platform = True
+                    platform_points.append(points[0])
+        
+        for point in points:
+            speed_list = [self.MaxSpeed]
+            for platform_point in platform_points:
+                distance = platform_point.path - point.path 
+                if distance < 0 :
+                    continue
+                speed_list.append(math.sqrt(2*self.a*distance))
+            point.speed = min(speed_list)                
+
+        # points.sort(key = lambda p: p.y) 
+        # index = [] 
+        # for i in range(len(points)) :
+            # point = points[i]
+            # if point.platform :
+                # index.append(i)
+        
+
 
     def angle(self, pace = 20):
         for i in range(len(self.points)-pace):
@@ -138,15 +249,29 @@ class Speed(object):
             if i+pace/2 < len(self.points) : 
                 self.points[i+pace/2].direction = angle/(pace-1)/math.pi*180
             # print angle/(pace-1)/math.pi*180#, [[p.x, p.y] for p in points]
-
-    def find_layer_by_name(self,name):
-        for layer in self.dxf.layers:
-            if layer.name == name:
-                return layer
     
+
+    @property
+    def entities_on(self):
+        def find_layer_by_name(name):
+            for layer in self.dxf.layers:
+                if layer.name == name:
+                    return layer
+        return [entity for entity in self.dxf.entities if find_layer_by_name(entity.layer).on ]
+    
+    def get_arc(self):
+        arcs = []
+        entities_on = self.entities_on
+
+        for entity in entities_on:
+            if entity.dxftype == 'ARC' :
+                center = Point(entity.center[0], entity.center[1])
+                arcs.append(Arc(center, entity.radius, entity.start_angle, entity.end_angle))
+        
+        return arcs
     def get_line(self):
         lines = []
-        entities_on = [entity for entity in self.dxf.entities if self.find_layer_by_name(entity.layer).on ]
+        entities_on = self.entities_on
 
         for entity in entities_on:
             if entity.dxftype == 'LINE' :
@@ -170,6 +295,7 @@ class Speed(object):
                     lines.append(line)
         return lines
     
+
     def get_track(self):
     	track = []
         self.lines.sort(key = lambda l: l.start.y)
@@ -179,6 +305,7 @@ class Speed(object):
         track.extend([processing_line.start, processing_line.end])
         
         return self.lines
+
 
     def draw_line(self, lines):
         all_points = [l.start for l in lines] + [l.end for l in lines]
@@ -199,32 +326,29 @@ class Speed(object):
         
         im.save("test.jpg")
     
+
     def html(self):
         input_html = open("hc.html")
         s = input_html.read()
         input_html.close()
         
-        # categories = ["1","2","3"]
-        # series = [{"name": 'test', "data" : [3,2,1]}]
         categories = []
         series = []
-        y = {"name": 'y', "data" : []}
+        max_speed = {"name": 'max_speed', "data" : []}
         direction = {"name": 'direction', "data" : []}
+        
+        self.points.sort(key = lambda p: p.y)        
         for p in self.points:
-            if p.direction < 10 :
-                continue
             categories.append(p.path)
-            y["data"].append(p.y - self.points[0].y)
-            direction["data"].append(p.direction)
-            print p.direction
+            max_speed["data"].append(self.MaxSpeed)
+            direction["data"].append(p.speed)
 
-        series.append(direction)
+        series.extend([direction, max_speed])
         output_html = open('test.html', 'w')
         output_html.write(s % (categories, series))
         output_html.close()
 
         
-
 if __name__ == "__main__":
     # p1 = Point(13,521)
     # p2 = Point(123,4)
@@ -234,4 +358,5 @@ if __name__ == "__main__":
     # line2 = Line(p3,p4)
     # print line1.distance_to_line(line2)
 
-    Speed("test.dxf")
+    s = Speed("test1.dxf")
+
