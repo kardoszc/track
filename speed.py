@@ -37,8 +37,8 @@ class Arc(object):
     def __init__(self, center, radius, start_angle, end_angle):
         self.center = center
         self.radius = radius
-        self.start_angle = start_angle
-        self.end_angle = end_angle
+        self.start_angle = math.pi * start_angle / 180
+        self.end_angle = math.pi * end_angle / 180
     
     @property
     def start(self):
@@ -49,17 +49,20 @@ class Arc(object):
         return self.point_by_angle(self.end_angle)
 
     def point_by_angle(self, angle):
-        angle = self.start_angle
+        angle = self.start_angle + angle
         x = self.center.x + math.cos(angle)*self.radius
         y = self.center.y + math.sin(angle)*self.radius
+        print x,y , angle, self.radius
         return Point(x, y)
 
     def points(self, pace = 2):
         points = []
         pace_angle = pace / self.radius
         n = int((self.end_angle - self.start_angle) / pace_angle)
-        for i in n:
+        # print "##########################"
+        for i in range(n):
             angle = self.start_angle + i * pace_angle
+            print angle
             points.append(self.point_by_angle(angle))
         return points
 
@@ -70,15 +73,15 @@ class Line(object):
         self.end = end
         self.valid = True
         
-        # if self.start.x != self.end.x :
-        #     if self.start.x > self.end.x:
-        #         self.start, self.end = self.end, self.start
-        #     self.k = (self.end.y - self.start.y) / (self.end.x - self.start.x) 
-        #     self.b = self.end.y - self.k * self.end.x
-        # else :
-        #     self.k = "infinite"   
-        #     if self.start.y > self.end.y:
-        #         self.start, self.end = self.end, self.start
+        if self.start.x != self.end.x :
+            if self.start.x > self.end.x:
+                self.start, self.end = self.end, self.start
+            self.k = (self.end.y - self.start.y) / (self.end.x - self.start.x) 
+            self.b = self.end.y - self.k * self.end.x
+        else :
+            self.k = "infinite"   
+            if self.start.y > self.end.y:
+                self.start, self.end = self.end, self.start
 
     @property
     def length(self):
@@ -152,54 +155,47 @@ class Speed(object):
         self.points = self.all_points()
         # self.angle()
         
-        # self.get_platform()
+        self.get_platform()
 
-        # self.html()
+        self.html()
         # self.draw_line(self.get_track())
     
     def all_points(self):
         points = []
 
-        endpoints = {}
-        for entity in self.lines + self.arcs :
-            start_key = "%s,%s" % (entity.start.x, entity.start.y)
-            end_key = "%s,%s" % (entity.start.x, entity.start.y)
-            if endpoints.has_key(start_key) :
-                endpoints[start_key].append({"start":entity})
-            else :
-                endpoints[start_key] = [{"start":entity}]
+        # endpoints = {}
+        # for entity in self.lines + self.arcs :
+        #     start_key = "%s,%s" % (round(entity.start.x,2), round(entity.start.y,2))
+        #     end_key = "%s,%s" % (round(entity.end.x,2), round(entity.end.y,2))
+        #     if endpoints.has_key(start_key) :
+        #         endpoints[start_key].append({"start":entity})
+        #     else :
+        #         endpoints[start_key] = [{"start":entity}]
 
-            if endpoints.has_key(end_key) :
-                endpoints[end_key].append({"end":entity})
-            else :
-                endpoints[end_key] = [{"end":entity}]
+        #     if endpoints.has_key(end_key) :
+        #         endpoints[end_key].append({"end":entity})
+        #     else :
+        #         endpoints[end_key] = [{"end":entity}]
         
-        for entity1 in self.lines + self.arcs :
-            for entity2 in self.lines + self.arcs :
-                if entity1 == entity2 :
-                    continue
-                if entity1.start.is_same_point(entity2.start) and entity1.end.is_same_point(entity2.end) :
-                    print entity1, entity2
-                elif entity1.start.is_same_point(entity2.end) and entity1.end.is_same_point(entity2.start) :
-                    print entity1, entity2
-
-        for t in endpoints.values():
-            if len(t) != 2:
-                print "------------"
-                for i in t:
-                    print id(i)
-                    print i.keys()[0],i.values()[0]
-                    
-        # for l in self.lines:
-        #     points.extend(l.points(2))
-        
-        # for p1 in points:
-        #     for p2 in points:
-        #         if p1 == p2:
+        # for entity1 in self.lines + self.arcs :
+        #     for entity2 in self.lines + self.arcs :
+        #         if entity1 == entity2 :
         #             continue
-        #         if p1.is_same_point(p2):
-        #             p2.valid = False
-        
+        #         if entity1.start.is_same_point(entity2.start) and entity1.end.is_same_point(entity2.end) :
+        #             print entity1, entity2
+        #         elif entity1.start.is_same_point(entity2.end) and entity1.end.is_same_point(entity2.start) :
+        #             print entity1, entity2
+
+        # for t in endpoints.values():
+        #     if len(t) != 2:
+        #         print "------------", len(t)
+        #         for i in t:
+        #             print id(i.values()[0])
+        #             print i.keys()[0],i.values()[0]
+                    
+        for entity in self.lines + self.arcs:
+            points.extend(entity.points())
+        points.sort(key = lambda p : p.y)
         points = [p for p in points if p.valid]
         path = 0
         for i in range(len(points)-1):
@@ -267,7 +263,8 @@ class Speed(object):
             if entity.dxftype == 'ARC' :
                 center = Point(entity.center[0], entity.center[1])
                 arcs.append(Arc(center, entity.radius, entity.start_angle, entity.end_angle))
-        
+        for arc in arcs:
+            arc.points() 
         return arcs
     def get_line(self):
         lines = []
@@ -335,15 +332,15 @@ class Speed(object):
         categories = []
         series = []
         max_speed = {"name": 'max_speed', "data" : []}
-        direction = {"name": 'direction', "data" : []}
+        stop_sight_distance = {"name": 'stop_sight_distance', "data" : []}
         
         self.points.sort(key = lambda p: p.y)        
         for p in self.points:
             categories.append(p.path)
             max_speed["data"].append(self.MaxSpeed)
-            direction["data"].append(p.speed)
+            stop_sight_distance["data"].append(p.speed)
 
-        series.extend([direction, max_speed])
+        series.extend([stop_sight_distance, max_speed])
         output_html = open('test.html', 'w')
         output_html.write(s % (categories, series))
         output_html.close()
