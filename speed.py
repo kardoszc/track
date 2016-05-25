@@ -52,17 +52,16 @@ class Arc(object):
         angle = self.start_angle + angle
         x = self.center.x + math.cos(angle)*self.radius
         y = self.center.y + math.sin(angle)*self.radius
-        print x,y , angle, self.radius
-        return Point(x, y)
+        point = Point(x, y)
+        point._from = "ARC"
+        return point 
 
     def points(self, pace = 2):
         points = []
         pace_angle = pace / self.radius
         n = int((self.end_angle - self.start_angle) / pace_angle)
-        # print "##########################"
         for i in range(n):
             angle = self.start_angle + i * pace_angle
-            print angle
             points.append(self.point_by_angle(angle))
         return points
 
@@ -98,7 +97,9 @@ class Line(object):
             for i in range(0,n,pace):
                 x = self.start.x + i / math.sqrt(self.k *self.k  +1)
                 y = self.start.y + i * self.k  / math.sqrt(self.k *self.k  +1)
-                points.append(Point(x, y))
+                point = Point(x, y)
+                point._from = "LINE" 
+                points.append(point)
         return points
             
     @property
@@ -158,7 +159,7 @@ class Speed(object):
         self.get_platform()
 
         self.html()
-        # self.draw_line(self.get_track())
+        self.draw_line(self.lines)
     
     def all_points(self):
         points = []
@@ -225,7 +226,9 @@ class Speed(object):
                 if distance < 0 :
                     continue
                 speed_list.append(math.sqrt(2*self.a*distance))
-            point.speed = min(speed_list)                
+            point.speed = min(speed_list)
+            if point.speed == self.MaxSpeed:
+                print point, point._from                
 
         # points.sort(key = lambda p: p.y) 
         # index = [] 
@@ -314,12 +317,10 @@ class Speed(object):
         def _convert(center,size,point):
             return [point.x-center.x+size[0]/2, -point.y+center.y+size[1]/2]
        
-        for l in lines:
-            draw.line(_convert(center,size,l.start)+_convert(center,size,l.end),"black")
-            for p in l.points():
-                p_coor = _convert(center,size,p)
-                xy = [int(p_coor[0])-1, int(p_coor[1])-1, int(p_coor[0])+1, int(p_coor[1])+1] 
-                draw.arc(xy,0,360,"red")
+        for p in self.points:
+            p_coor = _convert(center,size,p)
+            xy = [int(p_coor[0])-1, int(p_coor[1])-1, int(p_coor[0])+1, int(p_coor[1])+1] 
+            draw.arc(xy,0,360,"red")
         
         im.save("test.jpg")
     
@@ -355,5 +356,5 @@ if __name__ == "__main__":
     # line2 = Line(p3,p4)
     # print line1.distance_to_line(line2)
 
-    s = Speed("test1.dxf")
+    s = Speed("test.dxf")
 
