@@ -11,7 +11,9 @@ class Point(object):
         self.path = 0  #路程
         self.direction = 0  #车头方向
         self.platform = False
-        self.speed = 1
+        self.stop_sight_speed = 0
+        self.corner_speed = 0
+        self.radius = 'infinite'
 
     def is_same_point(self, point):
         return self.x == point.x and self.y == point.y
@@ -28,6 +30,9 @@ class Point(object):
         if ang < 0:
             ang += math.pi*2
         return ang
+    
+    def key(self):
+        return "%s,%s" % x,y
 
     def __str__(self):
         return "%s,%s" % (self.x, self.y)
@@ -162,8 +167,8 @@ class Speed(object):
         self.points = self.all_points()
         # self.angle()
         
-        self.get_platform()
-
+        self.get_stop_sight_speed()
+        self.get_corner_speed()
         self.html()
         self.draw_line(self.lines)
     
@@ -171,6 +176,13 @@ class Speed(object):
         points = []
         for entity in self.lines:
             points.extend(entity.points())
+        
+        all_points = {}
+        for point in points:
+            all_points[point.key] = point
+        points = all_points.values()
+
+
         points.sort(key = lambda p : p.y)
         # endpoints = {}
         # for entity in self.lines :
@@ -214,13 +226,12 @@ class Speed(object):
 
         path = 0
         for i in range(len(points)-1):
-            path += points[i].distance(points[i+1])
+            path += int(points[i].distance(points[i+1]))
             points[i+1].path = path
-            print points[i+1].y, points[i+1].path
         return points
     
 
-    def get_platform(self):
+    def get_stop_sight_speed(self):
         entities_on = self.entities_on
         points = self.points
         platform_points = []
@@ -233,6 +244,8 @@ class Speed(object):
                     points[0].platform = True
                     platform_points.append(points[0])
         
+        points.sort(key = lambda p : p.y)
+
         for point in points:
             speed_list = [self.MaxSpeed]
             for platform_point in platform_points:
@@ -240,7 +253,29 @@ class Speed(object):
                 if distance < 0 :
                     continue
                 speed_list.append(math.sqrt(25.4*distance))
-            point.stip_sight_speed = min(speed_list)
+            point.stop_sight_speed = min(speed_list)
+    
+    def get_corner_speed(self):
+        for point in self.points:
+            point.corner_speed = self.MaxSpeed
+        
+        self.points.sort(key = lambda p : p.y)
+
+        for i in range(len(self.points)-2):
+            point1 = self.points[i]
+            point2 = self.points[i+1]
+            point3 = self.points[i+2]
+            angle1 = point1.angle_to(point2)
+            angle2 = point2.angle_to(point3)
+            angle_12 = abs(angle1 - angle2) /2
+            if angle_12 != 0: 
+                radius = point1.distance(point3)/2 / (math.sin(angle_12))
+                point2.radius = radius
+                corner_speed = math.sqrt(200/11.8 * radius)
+                point2.corner_speed = corner_speed if corner_speed < self.MaxSpeed else self.MaxSpeed
+                if corner_speed < 10:
+                    print corner_speed, radius
+                    print point1,point2,point3
 
     @property
     def entities_on(self):
@@ -327,14 +362,27 @@ class Speed(object):
         series = []
         max_speed = {"name": 'max_speed', "data" : []}
         stop_sight_distance = {"name": 'stop_sight_distance', "data" : []}
+        turn_corner = {"name" : 'turn_corner', 'data' : []}
+        self.points.sort(key = lambda p: p.y) 
         
-        self.points.sort(key = lambda p: p.y)        
+        for i in range(len(self.points) - 2):
+            point1 = self.points[i]       
+            point2 = self.points[i+1]
+            point3 = self.points[i+2]
+            point2.corrected_stop_speed = (point1.stop_sight_speed + point2.stop_sight_speed + point3.stop_sight_speed) / 3
+            point2.corrected_corner_speed = (point1.corner_speed + point2.corner_speed + point3.corner_speed) / 3
+        
+        for point in [self.points[0],self.points[-1]]:
+            point.corrected_stop_speed = point.stop_sight_speed
+            point.corrected_corner_speed = point.corner_speed
+
         for p in self.points:
             categories.append(p.path)
             max_speed["data"].append(self.MaxSpeed)
-            stop_sight_distance["data"].append(p.stip_sight_speed)
+            stop_sight_distance["data"].append(p.corrected_stop_speed)
+            turn_corner["data"].append(p.corrected_corner_speed)
 
-        series.extend([stop_sight_distance, max_speed])
+        series.extend([stop_sight_distance, max_speed, turn_corner])
         output_html = open('test.html', 'w')
         output_html.write(s % (categories, series))
         output_html.close()

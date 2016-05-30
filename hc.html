@@ -1,7 +1,7 @@
 <html>
 <head>
-   <script type="text/javascript" src="file:///E:/kardos_test/track/jquery-1.8.3.min.js"></script>
-   <script type="text/javascript" src="file:///E:/kardos_test/track/highcharts.js"></script>
+   <script type="text/javascript" src="file:///D:/code/track_git/track/jquery-1.8.3.min.js"></script>
+   <script type="text/javascript" src="file:///D:/code/track_git/track/highcharts.js"></script>
    <script>
     $(function () {
     $('#container').highcharts({
@@ -13,7 +13,9 @@
             text: 'Auther: Kardos',
             x: -20
         },
-        xAxis: {
+        xAxis: {title: {
+                text: 'Path (m)'
+            },
             categories: %s 
         },
         yAxis: {
@@ -43,6 +45,6 @@
 </head>
     
 <body>
-   <div id="container" style="min-width:800px;height:800px;"></div>
+   <div id="container" style="min-width:800px;height:600px;"></div>
 </body>
 </html>
