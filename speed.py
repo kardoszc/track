@@ -81,24 +81,32 @@ class Line(object):
             self.k = "infinite"   
             if self.start.y > self.end.y:
                 self.start, self.end = self.end, self.start
+    @property
+    def start_key(self):
+        return "%s,%s" % (round(self.start.x,2), round(self.start.y,2))
+    
+    @property
+    def end_key(self):
+        return "%s,%s" % (round(self.end.x,2), round(self.end.y,2))
 
     @property
     def length(self):
         return self.start.distance(self.end)
 
     def points(self, pace = 2):
+        if self.length <= pace:
+            return [self.start]
         points = []
         n = int(self.length/pace)
         
         if self.k == "infinite":
             for i in range(0,n,pace):
-                points.append(Point(self.start.x, self.start.y + i))
+                points.append(Point(self.start.x, self.start.y + i*pace))
         else:
             for i in range(0,n,pace):
-                x = self.start.x + i / math.sqrt(self.k *self.k  +1)
-                y = self.start.y + i * self.k  / math.sqrt(self.k *self.k  +1)
+                x = self.start.x + i * pace / math.sqrt(self.k *self.k  + 1)
+                y = self.start.y + i * pace * self.k  / math.sqrt(self.k *self.k  + 1)
                 point = Point(x, y)
-                point._from = "LINE" 
                 points.append(point)
         return points
             
@@ -143,15 +151,13 @@ class Speed(object):
         self.MinTrackWidth = 5
         self.MaxTrackWidth = 20
         self.MaxSpeed = 70
-        self.a = 1.1
+        # self.a = 1.1
 
     	start = time.time()
         self.dxf = dxfgrabber.readfile(filename)
         print "readfile" , time.time() - start
         self.lines = self.get_line()
         print "get_line" , time.time() - start
-        self.arcs =self.get_arc()
-        print "get_arc" , time.time() - start
 
         self.points = self.all_points()
         # self.angle()
@@ -163,46 +169,54 @@ class Speed(object):
     
     def all_points(self):
         points = []
-
-        # endpoints = {}
-        # for entity in self.lines + self.arcs :
-        #     start_key = "%s,%s" % (round(entity.start.x,2), round(entity.start.y,2))
-        #     end_key = "%s,%s" % (round(entity.end.x,2), round(entity.end.y,2))
-        #     if endpoints.has_key(start_key) :
-        #         endpoints[start_key].append({"start":entity})
-        #     else :
-        #         endpoints[start_key] = [{"start":entity}]
-
-        #     if endpoints.has_key(end_key) :
-        #         endpoints[end_key].append({"end":entity})
-        #     else :
-        #         endpoints[end_key] = [{"end":entity}]
-        
-        # for entity1 in self.lines + self.arcs :
-        #     for entity2 in self.lines + self.arcs :
-        #         if entity1 == entity2 :
-        #             continue
-        #         if entity1.start.is_same_point(entity2.start) and entity1.end.is_same_point(entity2.end) :
-        #             print entity1, entity2
-        #         elif entity1.start.is_same_point(entity2.end) and entity1.end.is_same_point(entity2.start) :
-        #             print entity1, entity2
-
-        # for t in endpoints.values():
-        #     if len(t) != 2:
-        #         print "------------", len(t)
-        #         for i in t:
-        #             print id(i.values()[0])
-        #             print i.keys()[0],i.values()[0]
-                    
-        for entity in self.lines + self.arcs:
+        for entity in self.lines:
             points.extend(entity.points())
         points.sort(key = lambda p : p.y)
-        points = [p for p in points if p.valid]
+        # endpoints = {}
+        # for entity in self.lines :
+        #     start_key = "%s,%s" % (round(entity.start.x,2), round(entity.start.y,2))
+        #     end_key = "%s,%s" % (round(entity.end.x,2), round(entity.end.y,2))
+        #     if endpoints.has_key(entity.start_key) :
+        #         endpoints[entity.start_key].append({"start":entity})
+        #     else :
+        #         endpoints[entity.start_key] = [{"start":entity}]
+
+        #     if endpoints.has_key(entity.end_key) :
+        #         endpoints[entity.end_key].append({"end":entity})
+        #     else :
+        #         endpoints[entity.end_key] = [{"end":entity}]
+        
+        # key = ''
+        # self.lines.sort(key = lambda l: l.start.y)
+        # key = self.lines[0].start_key if self.lines[0].start.y < self.lines[0].end.y else self.lines[0].end_key
+        # key_type = 'start' if self.lines[0].start.y < self.lines[0].end.y else 'end'
+        # used_keys = []
+
+        # while key:
+        #     if key in used_keys:
+        #         break
+        #     values = endpoints[key]
+        #     used_keys.append(key)
+
+        #     for line in values:
+        #         print line.values()[0]
+        #         if line.keys()[0] != key_type:
+        #             if key_type == "start":
+        #                 points.extend(line.values()[0].points())
+        #             else:
+        #                 points.extend(line.values()[0].points()[::-1])
+        #         elif line.keys()[0] == key_type:
+        #             if key_type == "start":
+        #                 key = line.values()[0].end_key
+        #             else :
+        #                 key = line.values()[0].start_key
+        #             print key
+
         path = 0
         for i in range(len(points)-1):
-            path += int(points[i+1].distance(points[i]))
+            path += points[i].distance(points[i+1])
             points[i+1].path = path
-
+            print points[i+1].y, points[i+1].path
         return points
     
 
@@ -225,30 +239,8 @@ class Speed(object):
                 distance = platform_point.path - point.path 
                 if distance < 0 :
                     continue
-                speed_list.append(math.sqrt(2*self.a*distance))
-            point.speed = min(speed_list)
-            if point.speed == self.MaxSpeed:
-                print point, point._from                
-
-        # points.sort(key = lambda p: p.y) 
-        # index = [] 
-        # for i in range(len(points)) :
-            # point = points[i]
-            # if point.platform :
-                # index.append(i)
-        
-
-
-    def angle(self, pace = 20):
-        for i in range(len(self.points)-pace):
-            points = self.points[i:i+pace]
-            angle = 0
-            for j in range(pace-1):
-                angle += points[j].angle_to(points[j+1])
-            if i+pace/2 < len(self.points) : 
-                self.points[i+pace/2].direction = angle/(pace-1)/math.pi*180
-            # print angle/(pace-1)/math.pi*180#, [[p.x, p.y] for p in points]
-    
+                speed_list.append(math.sqrt(25.4*distance))
+            point.stip_sight_speed = min(speed_list)
 
     @property
     def entities_on(self):
@@ -258,17 +250,17 @@ class Speed(object):
                     return layer
         return [entity for entity in self.dxf.entities if find_layer_by_name(entity.layer).on ]
     
-    def get_arc(self):
-        arcs = []
-        entities_on = self.entities_on
+    # def get_arc(self):
+    #     arcs = []
+    #     entities_on = self.entities_on
 
-        for entity in entities_on:
-            if entity.dxftype == 'ARC' :
-                center = Point(entity.center[0], entity.center[1])
-                arcs.append(Arc(center, entity.radius, entity.start_angle, entity.end_angle))
-        for arc in arcs:
-            arc.points() 
-        return arcs
+    #     for entity in entities_on:
+    #         if entity.dxftype == 'ARC' :
+    #             center = Point(entity.center[0], entity.center[1])
+    #             arcs.append(Arc(center, entity.radius, entity.start_angle, entity.end_angle))
+    #     for arc in arcs:
+    #         arc.points() 
+    #     return arcs
     def get_line(self):
         lines = []
         entities_on = self.entities_on
@@ -282,15 +274,15 @@ class Speed(object):
             elif entity.dxftype == 'POLYLINE' :
                 pl_points = entity.points
                 for i in range(len(pl_points) - 1 ):
-                    start = Point(pl_points[i-1][0], pl_points[i-1][1])
-                    end = Point(pl_points[i][0], pl_points[i][1])
+                    start = Point(pl_points[i][0], pl_points[i][1])
+                    end = Point(pl_points[i+1][0], pl_points[i+1][1])
                     line = Line(start, end)
                     lines.append(line)
             elif entity.dxftype == 'LWPOLYLINE' :
                 pl_points = entity.points
                 for i in range(len(pl_points) - 1 ):
-                    start = Point(pl_points[i-1][0], pl_points[i-1][1])
-                    end = Point(pl_points[i][0], pl_points[i][1])
+                    start = Point(pl_points[i][0], pl_points[i][1])
+                    end = Point(pl_points[i+1][0], pl_points[i+1][1])
                     line = Line(start, end)
                     lines.append(line)
         return lines
@@ -316,10 +308,11 @@ class Speed(object):
         center = Point(max(all_x)/2+min(all_x)/2, max(all_y)/2+min(all_y)/2)
         def _convert(center,size,point):
             return [point.x-center.x+size[0]/2, -point.y+center.y+size[1]/2]
-       
+        
         for p in self.points:
             p_coor = _convert(center,size,p)
             xy = [int(p_coor[0])-1, int(p_coor[1])-1, int(p_coor[0])+1, int(p_coor[1])+1] 
+            # print p_coor, size, p.x, p.y
             draw.arc(xy,0,360,"red")
         
         im.save("test.jpg")
@@ -339,7 +332,7 @@ class Speed(object):
         for p in self.points:
             categories.append(p.path)
             max_speed["data"].append(self.MaxSpeed)
-            stop_sight_distance["data"].append(p.speed)
+            stop_sight_distance["data"].append(p.stip_sight_speed)
 
         series.extend([stop_sight_distance, max_speed])
         output_html = open('test.html', 'w')
